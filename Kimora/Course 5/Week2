@@ -1,0 +1,365 @@
+Assignment1:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: cosine_similarity
+  
+  def cosine_similarity(u, v):
+      """
+      Cosine similarity reflects the degree of similarity between u and v
+          
+      Arguments:
+          u -- a word vector of shape (n,)          
+          v -- a word vector of shape (n,)
+  
+      Returns:
+          cosine_similarity -- the cosine similarity between u and v defined by the formula above.
+      """
+      
+      # Special case. Consider the case u = [0, 0], v=[0, 0]
+      if np.all(u == v):
+          return 1
+      
+      ### START CODE HERE ###
+      # Compute the dot product between u and v (≈1 line)
+      dot = np.dot(u,v)
+      # Compute the L2 norm of u (≈1 line)
+      norm_u = np.sqrt(np.sum(u**2))
+      
+      # Compute the L2 norm of v (≈1 line)
+      norm_v = np.sqrt(np.sum(v**2))
+      
+      # Avoid division by 0
+      if np.isclose(norm_u * norm_v, 0, atol=1e-32):
+          return 0
+      
+      # Compute the cosine similarity defined by formula (1) (≈1 line)
+      cosine_similarity = dot/(norm_u * norm_v)
+      ### END CODE HERE ###
+      
+      return cosine_similarity
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: complete_analogy
+  
+  def complete_analogy(word_a, word_b, word_c, word_to_vec_map):
+      """
+      Performs the word analogy task as explained above: a is to b as c is to ____. 
+      
+      Arguments:
+      word_a -- a word, string
+      word_b -- a word, string
+      word_c -- a word, string
+      word_to_vec_map -- dictionary that maps words to their corresponding vectors. 
+      
+      Returns:
+      best_word --  the word such that v_b - v_a is close to v_best_word - v_c, as measured by cosine similarity
+      """
+      
+      # convert words to lowercase
+      word_a, word_b, word_c = word_a.lower(), word_b.lower(), word_c.lower()
+      
+      ### START CODE HERE ###
+      # Get the word embeddings e_a, e_b and e_c (≈1-3 lines)
+      e_a, e_b, e_c = word_to_vec_map[word_a], word_to_vec_map[word_b], word_to_vec_map[word_c]
+      ### END CODE HERE ###
+      
+      words = word_to_vec_map.keys()
+      max_cosine_sim = -100              # Initialize max_cosine_sim to a large negative number
+      best_word = None                   # Initialize best_word with None, it will help keep track of the word to output
+      
+      # loop over the whole word vector set
+      for w in words:   
+          # to avoid best_word being one the input words, skip the input word_c
+          # skip word_c from query
+          if w == word_c:
+              continue
+          
+          ### START CODE HERE ###
+          # Compute cosine similarity between the vector (e_b - e_a) and the vector ((w's vector representation) - e_c)  (≈1 line)
+          cosine_sim = cosine_similarity(e_b - e_a, word_to_vec_map[w] - e_c)
+          
+          # If the cosine_sim is more than the max_cosine_sim seen so far,
+              # then: set the new max_cosine_sim to the current cosine_sim and the best_word to the current word (≈3 lines)
+          if cosine_sim > max_cosine_sim:
+              max_cosine_sim = cosine_sim
+              best_word = w
+          ### END CODE HERE ###
+          
+      return best_word
+
+
+
+Assignment2:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: sentence_to_avg
+  
+  def sentence_to_avg(sentence, word_to_vec_map):
+      """
+      Converts a sentence (string) into a list of words (strings). Extracts the GloVe representation of each word
+      and averages its value into a single vector encoding the meaning of the sentence.
+      
+      Arguments:
+      sentence -- string, one training example from X
+      word_to_vec_map -- dictionary mapping every word in a vocabulary into its 50-dimensional vector representation
+      
+      Returns:
+      avg -- average vector encoding information about the sentence, numpy-array of shape (J,), where J can be any number
+      """
+      # Get a valid word contained in the word_to_vec_map. 
+      any_word = next(iter(word_to_vec_map.keys()))
+      
+      ### START CODE HERE ###
+      # Step 1: Split sentence into list of lower case words (≈ 1 line)
+      words = sentence.lower().split()
+  
+      # Initialize the average word vector, should have the same shape as your word vectors.
+      # Use `np.zeros` and pass in the argument of any word's word 2 vec's shape
+      avg = np.zeros(word_to_vec_map[any_word].shape)
+      
+      # Initialize count to 0
+      count = 0
+      
+      # Step 2: average the word vectors. You can loop over the words in the list "words".
+      for w in words:
+          # Check that word exists in word_to_vec_map
+          if w in word_to_vec_map:
+              avg += word_to_vec_map[w]
+              # Increment count
+              count +=1
+            
+      if count > 0:
+          # Get the average. But only if count > 0
+          avg = avg/count
+      
+      ### END CODE HERE ###
+      
+      return avg
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: model
+  
+  def model(X, Y, word_to_vec_map, learning_rate = 0.01, num_iterations = 400):
+      """
+      Model to train word vector representations in numpy.
+      
+      Arguments:
+      X -- input data, numpy array of sentences as strings, of shape (m,)
+      Y -- labels, numpy array of integers between 0 and 7, numpy-array of shape (m, 1)
+      word_to_vec_map -- dictionary mapping every word in a vocabulary into its 50-dimensional vector representation
+      learning_rate -- learning_rate for the stochastic gradient descent algorithm
+      num_iterations -- number of iterations
+      
+      Returns:
+      pred -- vector of predictions, numpy-array of shape (m, 1)
+      W -- weight matrix of the softmax layer, of shape (n_y, n_h)
+      b -- bias of the softmax layer, of shape (n_y,)
+      """
+      
+      # Get a valid word contained in the word_to_vec_map 
+      any_word = next(iter(word_to_vec_map.keys()))
+          
+      # Define number of training examples
+      m = Y.shape[0]                             # number of training examples
+      n_y = len(np.unique(Y))                    # number of classes  
+      n_h = word_to_vec_map[any_word].shape[0]   # dimensions of the GloVe vectors 
+      
+      # Initialize parameters using Xavier initialization
+      W = np.random.randn(n_y, n_h) / np.sqrt(n_h)
+      b = np.zeros((n_y,))
+      
+      # Convert Y to Y_onehot with n_y classes
+      Y_oh = convert_to_one_hot(Y, C = n_y) 
+      
+      # Optimization loop
+      for t in range(num_iterations): # Loop over the number of iterations
+          
+          cost = 0
+          dW = 0
+          db = 0
+          
+          for i in range(m):          # Loop over the training examples
+              
+              ### START CODE HERE ### (≈ 4 lines of code)
+              # Average the word vectors of the words from the i'th training example
+              # Use 'sentence_to_avg' you implemented above for this  
+              avg = sentence_to_avg(X[i], word_to_vec_map)
+  
+              # Forward propagate the avg through the softmax layer. 
+              # You can use np.dot() to perform the multiplication.
+              z = np.dot(W, avg) + b
+              a = softmax(z)
+  
+              # Add the cost using the i'th training label's one hot representation and "A" (the output of the softmax)
+              cost += -np.sum(Y_oh[i]*np.log(a))
+              ### END CODE HERE ###
+              
+              # Compute gradients 
+              dz = a - Y_oh[i]
+              dW += np.dot(dz.reshape(n_y,1), avg.reshape(1, n_h))
+              db += dz
+  
+              # Update parameters with Stochastic Gradient Descent
+              W = W - learning_rate * dW
+              b = b - learning_rate * db
+              
+          assert type(cost) == np.float64, "Incorrect implementation of cost"
+          assert cost.shape == (), "Incorrect implementation of cost"
+          
+          if t % 100 == 0:
+              print("Epoch: " + str(t) + " --- cost = " + str(cost))
+              pred = predict(X, Y, W, b, word_to_vec_map) #predict is defined in emo_utils.py
+  
+      return pred, W, b
+  
+  
+  
+  # UNQ_C3 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: sentences_to_indices
+  
+  def sentences_to_indices(X, word_to_index, max_len):
+      """
+      Converts an array of sentences (strings) into an array of indices corresponding to words in the sentences.
+      The output shape should be such that it can be given to `Embedding()` (described in Figure 4). 
+      
+      Arguments:
+      X -- array of sentences (strings), of shape (m,)
+      word_to_index -- a dictionary containing the each word mapped to its index
+      max_len -- maximum number of words in a sentence. You can assume every sentence in X is no longer than this. 
+      
+      Returns:
+      X_indices -- array of indices corresponding to words in the sentences from X, of shape (m, max_len)
+      """
+      
+      m = X.shape[0]                                   # number of training examples
+      
+      ### START CODE HERE ###
+      # Initialize X_indices as a numpy matrix of zeros and the correct shape (≈ 1 line)
+      X_indices = np.zeros((m, max_len))
+      
+      for i in range(m):                               # loop over training examples
+          
+          # Convert the ith training sentence to lower case and split it into words. You should get a list of words.
+          sentence_words = X[i].lower().split()
+          
+          # Initialize j to 0
+          j = 0
+          
+          # Loop over the words of sentence_words
+  
+          for w in sentence_words:
+              # if w exists in the word_to_index dictionary
+              if w in word_to_index:
+                  # Set the (i,j)th entry of X_indices to the index of the correct word.
+                  X_indices[i, j] = word_to_index[w]
+                  # Increment j to j + 1
+                  j = j+1
+              
+      ### END CODE HERE ###
+      
+      return X_indices
+  
+  
+  
+  # UNQ_C4 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: pretrained_embedding_layer
+  
+  def pretrained_embedding_layer(word_to_vec_map, word_to_index):
+      """
+      Creates a Keras Embedding() layer and loads in pre-trained GloVe 50-dimensional vectors.
+      
+      Arguments:
+      word_to_vec_map -- dictionary mapping words to their GloVe vector representation.
+      word_to_index -- dictionary mapping from words to their indices in the vocabulary (400,001 words)
+  
+      Returns:
+      embedding_layer -- pretrained layer Keras instance
+      """
+      
+      vocab_size = len(word_to_index) + 1              # adding 1 to fit Keras embedding (requirement)
+      any_word = next(iter(word_to_vec_map.keys()))
+      emb_dim = word_to_vec_map[any_word].shape[0]    # define dimensionality of your GloVe word vectors (= 50)
+        
+      ### START CODE HERE ###
+      # Step 1
+      # Initialize the embedding matrix as a numpy array of zeros.
+      # See instructions above to choose the correct shape.
+      emb_matrix = np.zeros((vocab_size, emb_dim))
+      
+      # Step 2
+      # Set each row "idx" of the embedding matrix to be 
+      # the word vector representation of the idx'th word of the vocabulary
+      for word, idx in word_to_index.items():
+          emb_matrix[idx, :] = word_to_vec_map.get(word, np.zeros(emb_dim))
+  
+      # Step 3
+      # Define Keras embedding layer with the correct input and output sizes
+      # Make it non-trainable.
+      embedding_layer = Embedding(
+          input_dim=vocab_size,
+          output_dim=emb_dim,
+          trainable=False
+      )
+      ### END CODE HERE ###
+  
+      # Step 4 (already done for you; please do not modify)
+      # Build the embedding layer, it is required before setting the weights of the embedding layer. 
+      embedding_layer.build((None,)) # Do not modify the "None".  This line of code is complete as-is.
+      
+      # Set the weights of the embedding layer to the embedding matrix. Your layer is now pretrained.
+      embedding_layer.set_weights([emb_matrix])
+      
+      return embedding_layer
+  
+  
+  
+  # UNQ_C5 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: Emojify_V2
+  
+  def Emojify_V2(input_shape, word_to_vec_map, word_to_index):
+      """
+      Function creating the Emojify-v2 model's graph.
+      
+      Arguments:
+      input_shape -- shape of the input, usually (max_len,)
+      word_to_vec_map -- dictionary mapping every word in a vocabulary into its 50-dimensional vector representation
+      word_to_index -- dictionary mapping from words to their indices in the vocabulary (400,001 words)
+  
+      Returns:
+      model -- a model instance in Keras
+      """
+      
+      ### START CODE HERE ###
+      # Define sentence_indices as the input of the graph.
+      # It should be of shape input_shape and dtype 'int32' (as it contains indices, which are integers).
+      sentence_indices = Input(shape=input_shape, dtype='int32')
+      
+      # Create the embedding layer pretrained with GloVe Vectors (≈1 line)
+      embedding_layer = pretrained_embedding_layer(word_to_vec_map, word_to_index)
+      
+      # Propagate sentence_indices through your embedding layer
+      # (See additional hints in the instructions).
+      embeddings = embedding_layer(sentence_indices)
+      
+      # Propagate the embeddings through an LSTM layer with 128-dimensional hidden state
+      # The returned output should be a batch of sequences.
+      X = LSTM(128, return_sequences=True)(embeddings)
+      # Add dropout with a probability of 0.5
+      X = Dropout(0.5)(X) 
+      # Propagate X trough another LSTM layer with 128-dimensional hidden state
+      # The returned output should be a single hidden state, not a batch of sequences.
+      X = LSTM(128, return_sequences=False)(X)
+      # Add dropout with a probability of 0.5
+      X = Dropout(0.5)(X)
+      # Propagate X through a Dense layer with 5 units
+      X = Dense(5, activation='linear')(X)
+      # Add a softmax activation
+      
+      # Create Model instance which converts sentence_indices into X.
+      model = Model(inputs=sentence_indices, outputs=X)
+      
+      ### END CODE HERE ###
+      
+      return model
