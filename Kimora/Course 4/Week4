@@ -1,0 +1,272 @@
+Assignment1:
+  # UNQ_C1(UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: triplet_loss
+  
+  def triplet_loss(y_true, y_pred, alpha = 0.2):
+      """
+      Implementation of the triplet loss as defined by formula (3)
+      
+      Arguments:
+      y_true -- true labels, required when you define a loss in Keras, you don't need it in this function.
+      y_pred -- python list containing three objects:
+              anchor -- the encodings for the anchor images, of shape (None, 128)
+              positive -- the encodings for the positive images, of shape (None, 128)
+              negative -- the encodings for the negative images, of shape (None, 128)
+      
+      Returns:
+      loss -- real number, value of the loss
+      """
+      
+      anchor, positive, negative = y_pred[0], y_pred[1], y_pred[2]
+      
+      ### START CODE HERE
+      #(≈ 4 lines)
+      # Step 1: Compute the (encoding) distance between the anchor and the positive
+      pos_dist = tf.reduce_sum(tf.square(tf.subtract(anchor,positive)), axis=1)
+      # Step 2: Compute the (encoding) distance between the anchor and the negative
+      neg_dist = tf.reduce_sum(tf.square(tf.subtract(anchor,negative)), axis=1)
+      # Step 3: subtract the two previous distances and add alpha.
+      basic_loss = pos_dist - neg_dist + alpha
+      # Step 4: Take the maximum of basic_loss and 0.0. Sum over the training examples.
+      loss = tf.reduce_sum(tf.maximum(basic_loss, 0.0))
+      ### END CODE HERE
+      
+      return loss
+  
+  
+  
+  # UNQ_C2(UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: verify
+  
+  def verify(image_path, identity, database, model):
+      """
+      Function that verifies if the person on the "image_path" image is "identity".
+      
+      Arguments:
+          image_path -- path to an image
+          identity -- string, name of the person you'd like to verify the identity. Has to be an employee who works in the office.
+          database -- python dictionary mapping names of allowed people's names (strings) to their encodings (vectors).
+          model -- your Inception model instance in Keras
+      
+      Returns:
+          dist -- distance between the image_path and the image of "identity" in the database.
+          door_open -- True, if the door should open. False otherwise.
+      """
+      ### START CODE HERE
+      # Step 1: Compute the encoding for the image. Use img_to_encoding() see example above. (≈ 1 line)
+      encoding = img_to_encoding(image_path, model)
+      # Step 2: Compute distance with identity's image (≈ 1 line)
+      dist = tf.norm(database[identity] - encoding)
+      # Step 3: Open the door if dist < 0.7, else don't open (≈ 3 lines)
+      if dist < 0.7:
+          print("It's " + str(identity) + ", welcome in!")
+          door_open = True
+      else:
+          print("It's not " + str(identity) + ", please go away")
+          door_open = False
+      ### END CODE HERE        
+      return dist, door_open
+  
+  
+  
+  # UNQ_C3(UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: who_is_it
+  
+  def who_is_it(image_path, database, model):
+      """
+      Implements face recognition for the office by finding who is the person on the image_path image.
+      
+      Arguments:
+          image_path -- path to an image
+          database -- database containing image encodings along with the name of the person on the image
+          model -- your Inception model instance in Keras
+      
+      Returns:
+          min_dist -- the minimum distance between image_path encoding and the encodings from the database
+          identity -- string, the name prediction for the person on image_path
+      """
+      
+      ### START CODE HERE
+  
+      ## Step 1: Compute the target "encoding" for the image. Use img_to_encoding() see example above. ## (≈ 1 line)
+      encoding =  img_to_encoding(image_path,model)
+      
+      ## Step 2: Find the closest encoding ##
+      
+      # Initialize "min_dist" to a large value, say 100 (≈1 line)
+      min_dist = 100
+      
+      # Loop over the database dictionary's names and encodings.
+      for (name, db_enc) in database.items():
+          
+          # Compute L2 distance between the target "encoding" and the current db_enc from the database. (≈ 1 line)
+          dist = tf.norm(database[name] - encoding)
+  
+          # If this distance is less than the min_dist, then set min_dist to dist, and identity to name. (≈ 3 lines)
+          if dist < min_dist:
+              min_dist = dist
+              identity = name
+      ### END CODE HERE
+      
+      if min_dist > 0.7:
+          print("Not in the database.")
+      else:
+          print ("it's " + str(identity) + ", the distance is " + str(min_dist))
+          
+      return min_dist, identity
+
+
+
+Assignment2:
+  # UNQ_C1
+  # GRADED FUNCTION: compute_content_cost
+  
+  def compute_content_cost(content_output, generated_output):
+      """
+      Computes the content cost
+      
+      Arguments:
+      a_C -- tensor of dimension (1, n_H, n_W, n_C), hidden layer activations representing content of the image C 
+      a_G -- tensor of dimension (1, n_H, n_W, n_C), hidden layer activations representing content of the image G
+      
+      Returns: 
+      J_content -- scalar that you compute using equation 1 above.
+      """
+      a_C = content_output[-1]
+      a_G = generated_output[-1]
+      
+      ### START CODE HERE
+      
+      # Retrieve dimensions from a_G (≈1 line)
+      _, n_H, n_W, n_C = a_G.shape
+      
+      # Reshape 'a_C' and 'a_G' (≈2 lines)
+      # DO NOT reshape 'content_output' or 'generated_output'
+      a_C_unrolled = tf.reshape(a_C, shape=[_, -1, n_C])
+      a_G_unrolled = tf.reshape(a_G, shape=[_, -1, n_C])
+      
+      # compute the cost with tensorflow (≈1 line)
+      J_content = (1/(4*n_H*n_W*n_C)) * tf.reduce_sum(tf.square(tf.subtract(a_C,a_G)))
+  
+      ### END CODE HERE
+      
+      return J_content
+  
+  
+  
+  # UNQ_C2
+  # GRADED FUNCTION: gram_matrix
+  
+  def gram_matrix(A):
+      """
+      Argument:
+      A -- matrix of shape (n_C, n_H*n_W)
+      
+      Returns:
+      GA -- Gram matrix of A, of shape (n_C, n_C)
+      """  
+      ### START CODE HERE
+      
+      #(≈1 line)
+      GA = tf.matmul(A,tf.transpose(A))
+      
+      ### END CODE HERE
+  
+      return GA
+  
+  
+  
+  # UNQ_C3
+  # GRADED FUNCTION: compute_layer_style_cost
+  
+  def compute_layer_style_cost(a_S, a_G):
+      """
+      Arguments:
+      a_S -- tensor of dimension (1, n_H, n_W, n_C), hidden layer activations representing style of the image S 
+      a_G -- tensor of dimension (1, n_H, n_W, n_C), hidden layer activations representing style of the image G
+      
+      Returns: 
+      J_style_layer -- tensor representing a scalar value, style cost defined above by equation (2)
+      """
+      ### START CODE HERE
+      # Retrieve dimensions from a_G (≈1 line)
+      _, n_H, n_W, n_C = a_G.get_shape().as_list()
+      
+      # Reshape the tensors from (1, n_H, n_W, n_C) to (n_C, n_H * n_W) (≈2 lines)
+      a_S = tf.reshape(tf.transpose(a_S, perm=[0, 3, 1, 2]), shape=[n_C, -1])
+      a_G = tf.reshape(tf.transpose(a_G, perm=[0, 3, 1, 2]), shape=[n_C, -1])
+      # Computing gram_matrices for both images S and G (≈2 lines)
+      GS = gram_matrix(a_S)
+      GG = gram_matrix(a_G)
+  
+      # Computing the loss (≈1 line)
+      J_style_layer = tf.reduce_sum(tf.square(GS - GG)) / (tf.cast(4 * tf.square(n_C) * tf.square(n_H * n_W), tf.float32))
+      
+      ### END CODE HERE
+      
+      return J_style_layer
+  
+  
+  
+  # UNQ_C4
+  # GRADED FUNCTION: total_cost
+  @tf.function()
+  def total_cost(J_content, J_style, alpha = 10, beta = 40):
+      """
+      Computes the total cost function
+      
+      Arguments:
+      J_content -- content cost coded above
+      J_style -- style cost coded above
+      alpha -- hyperparameter weighting the importance of the content cost
+      beta -- hyperparameter weighting the importance of the style cost
+      
+      Returns:
+      J -- total cost as defined by the formula above.
+      """
+      ### START CODE HERE
+      
+      #(≈1 line)
+      J = J_content*alpha + J_style*beta
+      
+      ### START CODE HERE
+  
+      return J
+  
+  
+  
+  # UNQ_C5
+  # GRADED FUNCTION: train_step
+  
+  optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+  
+  @tf.function()
+  def train_step(generated_image):
+      with tf.GradientTape() as tape:
+          # In this function you must use the precomputed encoded images a_S and a_C
+          
+          ### START CODE HERE
+          
+          # Compute a_G as the vgg_model_outputs for the current generated image
+          #(1 line)
+          a_G = vgg_model_outputs(generated_image)
+          
+          # Compute the style cost
+          #(1 line)
+          J_style = compute_style_cost(a_S, a_G)
+  
+          #(2 lines)
+          # Compute the content cost
+          J_content = compute_content_cost(a_C, a_G)
+          
+          # Compute the total cost
+          J = total_cost(J_content, J_style, alpha=10, beta=40)
+          
+          ### END CODE HERE
+          
+      grad = tape.gradient(J, generated_image)
+  
+      optimizer.apply_gradients([(grad, generated_image)])
+      generated_image.assign(clip_0_1(generated_image))
+      # For grading purposes
+      return J
