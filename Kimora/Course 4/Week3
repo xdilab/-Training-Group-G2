@@ -1,0 +1,374 @@
+Assignment1:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: yolo_filter_boxes
+  
+  def yolo_filter_boxes(boxes, box_confidence, box_class_probs, threshold = .6):
+      """Filters YOLO boxes by thresholding on object and class confidence.
+      
+      Arguments:
+          boxes -- tensor of shape (19, 19, 5, 4)
+          box_confidence -- tensor of shape (19, 19, 5, 1)
+          box_class_probs -- tensor of shape (19, 19, 5, 80)
+          threshold -- real value, if [ highest class probability score < threshold],
+                       then get rid of the corresponding box
+  
+      Returns:
+          scores -- tensor of shape (None,), containing the class probability score for selected boxes
+          boxes -- tensor of shape (None, 4), containing (b_x, b_y, b_h, b_w) coordinates of selected boxes
+          classes -- tensor of shape (None,), containing the index of the class detected by the selected boxes
+  
+      Note: "None" is here because you don't know the exact number of selected boxes, as it depends on the threshold. 
+      For example, the actual output size of scores would be (10,) if there are 10 boxes.
+      """
+      
+      ### START CODE HERE
+      # Step 1: Compute box scores
+      ##(≈ 1 line)
+      box_scores = box_class_probs * box_confidence
+  
+      # Step 2: Find the box_classes using the max box_scores, keep track of the corresponding score
+      ##(≈ 2 lines)
+      # IMPORTANT: set axis to -1
+      box_classes = tf.math.argmax(box_scores, axis=-1)
+      box_class_scores = tf.math.reduce_max(box_scores, axis=-1)
+      
+      # Step 3: Create a filtering mask based on "box_class_scores" by using "threshold". The mask should have the
+      # same dimension as box_class_scores, and be True for the boxes you want to keep (with probability >= threshold)
+      ## (≈ 1 line)
+      filtering_mask = box_class_scores >= threshold
+      
+      # Step 4: Apply the mask to box_class_scores, boxes and box_classes
+      ## (≈ 3 lines)
+      scores = tf.boolean_mask(box_class_scores, filtering_mask)
+      boxes = tf.boolean_mask(boxes, filtering_mask)
+      classes = tf.boolean_mask(box_classes, filtering_mask)
+      ### END CODE HERE
+      
+      return scores, boxes, classes
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: iou
+  
+  def iou(box1, box2):
+      """Implement the intersection over union (IoU) between box1 and box2
+      
+      Arguments:
+      box1 -- first box, list object with coordinates (box1_x1, box1_y1, box1_x2, box_1_y2)
+      box2 -- second box, list object with coordinates (box2_x1, box2_y1, box2_x2, box2_y2)
+      """
+  
+  
+      (box1_x1, box1_y1, box1_x2, box1_y2) = box1
+      (box2_x1, box2_y1, box2_x2, box2_y2) = box2
+  
+      ### START CODE HERE
+      # Calculate the (yi1, xi1, yi2, xi2) coordinates of the intersection of box1 and box2. Calculate its Area.
+      ##(≈ 7 lines)
+      xi1 = max(box1_x1, box2_x1)
+      yi1 = max(box1_y1, box2_y1)
+      xi2 = min(box1_x2, box2_x2)
+      yi2 = min(box1_x2, box2_x2)
+      inter_width = max(0, xi2-xi1)
+      inter_height =  max(0, yi2-yi1)
+      inter_area = inter_height * inter_width
+      
+      # Calculate the Union area by using Formula: Union(A,B) = A + B - Inter(A,B)
+      ## (≈ 3 lines)
+      box1_area = (box1_x2-box1_x1) * (box1_y2-box1_y1)
+      box2_area = (box2_x2-box2_x1) * (box2_y2-box2_y1)
+      union_area = box1_area + box2_area - inter_area
+      
+      # compute the IoU
+      iou = inter_area/union_area
+      ### END CODE HERE
+      
+      return iou
+  
+  
+  
+  # UNQ_C3 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: yolo_non_max_suppression
+  
+  def yolo_non_max_suppression(scores, boxes, classes, max_boxes = 10, iou_threshold = 0.5):
+      """
+      Applies Non-max suppression (NMS) to set of boxes
+      
+      Arguments:
+      scores -- tensor of shape (None,), output of yolo_filter_boxes()
+      boxes -- tensor of shape (None, 4), output of yolo_filter_boxes() that have been scaled to the image size (see later)
+      classes -- tensor of shape (None,), output of yolo_filter_boxes()
+      max_boxes -- integer, maximum number of predicted boxes you'd like
+      iou_threshold -- real value, "intersection over union" threshold used for NMS filtering
+      
+      Returns:
+      scores -- tensor of shape (None, ), predicted score for each box
+      boxes -- tensor of shape (None, 4), predicted box coordinates
+      classes -- tensor of shape (None, ), predicted class for each box
+      
+      Note: The "None" dimension of the output tensors has obviously to be less than max_boxes. Note also that this
+      function will transpose the shapes of scores, boxes, classes. This is made for convenience.
+      """
+      boxes = tf.cast(boxes, dtype=tf.float32)
+      scores = tf.cast(scores, dtype=tf.float32)
+  
+      nms_indices = []
+      classes_labels = tf.unique(classes)[0] # Get unique classes
+      
+      for label in classes_labels:
+          filtering_mask = classes == label
+      
+      #### START CODE HERE
+  
+          # Get boxes for this class
+          # Use tf.boolean_mask() with 'boxes' and `filtering_mask`
+          boxes_label = tf.boolean_mask(boxes, filtering_mask)
+          
+          # Get scores for this class
+          # Use tf.boolean_mask() with 'scores' and `filtering_mask`
+          scores_label = tf.boolean_mask(scores, filtering_mask)
+          
+          if tf.shape(scores_label)[0] > 0:  # Check if there are any boxes to process
+              
+              # Use tf.image.non_max_suppression() to get the list of indices corresponding to boxes you keep
+              ##(≈ 5 lines)
+              nms_indices_label = tf.image.non_max_suppression(
+                      boxes_label,
+                      scores_label,
+                      max_boxes,
+                      iou_threshold=iou_threshold) 
+  
+              # Get original indices of the selected boxes
+              selected_indices = tf.squeeze(tf.where(filtering_mask), axis=1)
+              
+              # Append the resulting boxes into the partial result
+              # Use tf.gather() with 'selected_indices' and `nms_indices_label`
+              nms_indices.append(tf.gather(selected_indices, nms_indices_label))
+  
+      # Flatten the list of indices and concatenate
+      # Use tf.concat() with 'nms_indices' and `axis=0`
+      nms_indices = tf.concat(nms_indices, axis=0)
+      
+      # Use tf.gather() to select only nms_indices from scores, boxes and classes
+      ##(≈ 3 lines)
+      scores = tf.gather(scores, nms_indices)
+      boxes = tf.gather(boxes, nms_indices)
+      classes = tf.gather(classes, nms_indices)
+      
+      ### END CODE HERE       
+      
+      # Sort by scores and return the top max_boxes
+      sort_order = tf.argsort(scores, direction='DESCENDING').numpy()
+      scores = tf.gather(scores, sort_order[0:max_boxes])
+      boxes = tf.gather(boxes, sort_order[0:max_boxes])
+      classes = tf.gather(classes, sort_order[0:max_boxes])
+  
+      return scores, boxes, classes
+  
+  
+  
+  # UNQ_C4 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: yolo_eval
+  
+  def yolo_eval(yolo_outputs, image_shape = (720, 1280), max_boxes=10, score_threshold=.6, iou_threshold=.5):
+      """
+      Converts the output of YOLO encoding (a lot of boxes) to your predicted boxes along with their scores, box coordinates and classes.
+      
+      Arguments:
+      yolo_outputs -- output of the encoding model (for image_shape of (608, 608, 3)), contains 4 tensors:
+                      box_xy: tensor of shape (None, 19, 19, 5, 2)
+                      box_wh: tensor of shape (None, 19, 19, 5, 2)
+                      box_confidence: tensor of shape (None, 19, 19, 5, 1)
+                      box_class_probs: tensor of shape (None, 19, 19, 5, 80)
+      image_shape -- tensor of shape (2,) containing the input shape, in this notebook we use (608., 608.) (has to be float32 dtype)
+      max_boxes -- integer, maximum number of predicted boxes you'd like
+      score_threshold -- real value, if [ highest class probability score < threshold], then get rid of the corresponding box
+      iou_threshold -- real value, "intersection over union" threshold used for NMS filtering
+      
+      Returns:
+      scores -- tensor of shape (None, ), predicted score for each box
+      boxes -- tensor of shape (None, 4), predicted box coordinates
+      classes -- tensor of shape (None,), predicted class for each box
+      """
+      
+      ### START CODE HERE
+      
+      # Retrieve outputs of the YOLO model (≈1 line)
+      box_xy, box_wh, box_confidence, box_class_probs = yolo_outputs
+      
+      # Convert boxes to be ready for filtering functions (convert boxes box_xy and box_wh to corner coordinates)
+      boxes = yolo_boxes_to_corners(box_xy, box_wh)
+      
+      # Use the function `yolo_filter_boxes` you've implemented to perform Score-filtering with a threshold of score_threshold
+      scores, boxes, classes = yolo_filter_boxes(boxes, # Use boxes
+                                    box_confidence, # Use box confidence
+                                    box_class_probs, # Use box class probability
+                                    threshold = score_threshold  # Use threshold=score_threshold
+                                   )
+      
+      # Scale boxes back to original image shape.
+      boxes = scale_boxes(boxes, image_shape)
+      
+      # Use the function `yolo_non_max_suppression` you've implemented to perform Non-max suppression with 
+      # maximum number of boxes set to max_boxes and a threshold of iou_threshold
+      scores, boxes, classes = yolo_non_max_suppression(scores, # Use scores
+                                    boxes, # Use boxes
+                                    classes, # Use classes
+                                    max_boxes, # Use max boxes
+                                    iou_threshold = iou_threshold  # Use iou_threshold=iou_threshold
+                                   )
+      
+      ### END CODE HERE
+      
+      return scores, boxes, classes
+
+
+
+Assignment2:
+  # UNQ_C1
+  # GRADED FUNCTION: conv_block
+  def conv_block(inputs=None, n_filters=32, dropout_prob=0, max_pooling=True):
+      """
+      Convolutional downsampling block
+      
+      Arguments:
+          inputs -- Input tensor
+          n_filters -- Number of filters for the convolutional layers
+          dropout_prob -- Dropout probability
+          max_pooling -- Use MaxPooling2D to reduce the spatial dimensions of the output volume
+      Returns: 
+          next_layer, skip_connection --  Next layer and skip connection outputs
+      """
+  
+      ### START CODE HERE
+      conv = Conv2D(n_filters, # Number of filters
+                    3,   # Kernel size   
+                    activation='relu',
+                    padding='same',
+                    kernel_initializer='he_normal')(inputs)
+      conv = Conv2D(n_filters, # Number of filters
+                    3,   # Kernel size
+                    activation='relu',
+                    padding='same',
+                    # set 'kernel_initializer' same as above
+                    kernel_initializer='he_normal')(conv)
+      ### END CODE HERE
+      
+      # if dropout_prob > 0 add a dropout layer, with the variable dropout_prob as parameter
+      if dropout_prob > 0:
+           ### START CODE HERE
+          conv = Dropout(dropout_prob)(conv)
+           ### END CODE HERE
+           
+          
+      # if max_pooling is True add a MaxPooling2D with 2x2 pool_size
+      if max_pooling:
+          ### START CODE HERE
+          next_layer = MaxPooling2D(pool_size=(2,2))(conv)
+          ### END CODE HERE
+          
+      else:
+          next_layer = conv
+          
+      skip_connection = conv
+      
+      return next_layer, skip_connection
+  
+  
+  
+  # UNQ_C2
+  # GRADED FUNCTION: upsampling_block
+  def upsampling_block(expansive_input, contractive_input, n_filters=32):
+      """
+      Convolutional upsampling block
+      
+      Arguments:
+          expansive_input -- Input tensor from previous layer
+          contractive_input -- Input tensor from previous skip layer
+          n_filters -- Number of filters for the convolutional layers
+      Returns: 
+          conv -- Tensor output
+      """
+      
+      ### START CODE HERE
+      up = Conv2DTranspose(
+                   n_filters,    # number of filters
+                   3,    # Kernel size
+                   strides=2,
+                   padding='same')(expansive_input)
+      
+      # Merge the previous output and the contractive_input
+      merge = concatenate([up, contractive_input], axis=3)
+      conv = Conv2D(n_filters,   # Number of filters
+                   3,     # Kernel size
+                   activation='relu',
+                   padding='same',
+                   kernel_initializer='he_normal')(merge)
+      conv = Conv2D(n_filters,  # Number of filters
+                   3,   # Kernel size
+                   activation='relu',
+                   padding='same',
+                    # set 'kernel_initializer' same as above
+                   kernel_initializer='he_normal')(conv)
+      ### END CODE HERE
+      
+      return conv
+  
+  
+  
+  # UNQ_C3
+  # GRADED FUNCTION: unet_model
+  def unet_model(input_size=(96, 128, 3), n_filters=32, n_classes=23):
+      """
+      Unet model
+      
+      Arguments:
+          input_size -- Input shape 
+          n_filters -- Number of filters for the convolutional layers
+          n_classes -- Number of output classes
+      Returns: 
+          model -- tf.keras.Model
+      """
+      inputs = Input(input_size)
+      # Contracting Path (encoding)
+      # Add a conv_block with the inputs of the unet_ model and n_filters
+      ### START CODE HERE
+      cblock1 = conv_block(inputs, n_filters)
+      # Chain the first element of the output of each block to be the input of the next conv_block. 
+      # Double the number of filters at each new step
+      cblock2 = conv_block(cblock1[0], n_filters*2)
+      cblock3 = conv_block(cblock2[0], n_filters*4)
+      cblock4 = conv_block(cblock3[0], n_filters*8, dropout_prob=0.3) # Include a dropout_prob of 0.3 for this layer
+      # Include a dropout_prob of 0.3 for this layer, and avoid the max_pooling layer
+      cblock5 = conv_block(cblock4[0], n_filters*16, dropout_prob=0.3, max_pooling=False) 
+      ### END CODE HERE
+      
+      # Expanding Path (decoding)
+      # Add the first upsampling_block.
+      # Use the cblock5[0] as expansive_input and cblock4[1] as contractive_input and n_filters * 8
+      ### START CODE HERE
+      ublock6 = upsampling_block(cblock5[0], cblock4[1],  n_filters*8)
+      # Chain the output of the previous block as expansive_input and the corresponding contractive block output.
+      # Note that you must use the second element of the contractive block i.e before the maxpooling layer. 
+      # At each step, use half the number of filters of the previous block 
+      ublock7 = upsampling_block(ublock6, cblock3[1],  n_filters*4)
+      ublock8 = upsampling_block(ublock7, cblock2[1],  n_filters*2)
+      ublock9 = upsampling_block(ublock8, cblock1[1],  n_filters)
+      ### END CODE HERE
+  
+      conv9 = Conv2D(n_filters,
+                   3,
+                   activation='relu',
+                   padding='same',
+                   # set 'kernel_initializer' same as above exercises
+                   kernel_initializer='he_normal')(ublock9)
+  
+      # Add a Conv2D layer with n_classes filter, kernel size of 1 and a 'same' padding
+      ### START CODE HERE
+      conv10 = Conv2D(n_classes, 1, padding='same')(conv9)
+      ### END CODE HERE
+      
+      model = tf.keras.Model(inputs=inputs, outputs=conv10)
+  
+      return model
