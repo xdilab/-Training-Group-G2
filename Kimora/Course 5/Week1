@@ -1,0 +1,666 @@
+Assignment1:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: rnn_cell_forward
+  
+  def rnn_cell_forward(xt, a_prev, parameters):
+      """
+      Implements a single forward step of the RNN-cell as described in Figure (2)
+  
+      Arguments:
+      xt -- your input data at timestep "t", numpy array of shape (n_x, m).
+      a_prev -- Hidden state at timestep "t-1", numpy array of shape (n_a, m)
+      parameters -- python dictionary containing:
+                          Wax -- Weight matrix multiplying the input, numpy array of shape (n_a, n_x)
+                          Waa -- Weight matrix multiplying the hidden state, numpy array of shape (n_a, n_a)
+                          Wya -- Weight matrix relating the hidden-state to the output, numpy array of shape (n_y, n_a)
+                          ba --  Bias, numpy array of shape (n_a, 1)
+                          by -- Bias relating the hidden-state to the output, numpy array of shape (n_y, 1)
+      Returns:
+      a_next -- next hidden state, of shape (n_a, m)
+      yt_pred -- prediction at timestep "t", numpy array of shape (n_y, m)
+      cache -- tuple of values needed for the backward pass, contains (a_next, a_prev, xt, parameters)
+      """
+      
+      # Retrieve parameters from "parameters"
+      Wax = parameters["Wax"]
+      Waa = parameters["Waa"]
+      Wya = parameters["Wya"]
+      ba = parameters["ba"]
+      by = parameters["by"]
+      
+      ### START CODE HERE ### (≈2 lines)
+      # compute next activation state using the formula given above
+      a_next = np.tanh(np.dot(Waa,a_prev) + np.dot(Wax,xt) + ba)
+      # compute output of the current cell using the formula given above
+      yt_pred = softmax(np.dot(Wya,a_next) + by)
+      ### END CODE HERE ###
+      
+      # store values you need for backward propagation in cache
+      cache = (a_next, a_prev, xt, parameters)
+      
+      return a_next, yt_pred, cache
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: rnn_forward
+  
+  def rnn_forward(x, a0, parameters):
+      """
+      Implement the forward propagation of the recurrent neural network described in Figure (3).
+  
+      Arguments:
+      x -- Input data for every time-step, of shape (n_x, m, T_x).
+      a0 -- Initial hidden state, of shape (n_a, m)
+      parameters -- python dictionary containing:
+                          Waa -- Weight matrix multiplying the hidden state, numpy array of shape (n_a, n_a)
+                          Wax -- Weight matrix multiplying the input, numpy array of shape (n_a, n_x)
+                          Wya -- Weight matrix relating the hidden-state to the output, numpy array of shape (n_y, n_a)
+                          ba --  Bias numpy array of shape (n_a, 1)
+                          by -- Bias relating the hidden-state to the output, numpy array of shape (n_y, 1)
+  
+      Returns:
+      a -- Hidden states for every time-step, numpy array of shape (n_a, m, T_x)
+      y_pred -- Predictions for every time-step, numpy array of shape (n_y, m, T_x)
+      caches -- tuple of values needed for the backward pass, contains (list of caches, x)
+      """
+      
+      # Initialize "caches" which will contain the list of all caches
+      caches = []
+      
+      # Retrieve dimensions from shapes of x and parameters["Wya"]
+      n_x, m, T_x = x.shape
+      n_y, n_a = parameters["Wya"].shape
+      
+      ### START CODE HERE ###
+      
+      # initialize "a" and "y_pred" with zeros (≈2 lines)
+      a = np.zeros((n_a, m, T_x))
+      y_pred = np.zeros((n_y, m, T_x))
+      
+      # Initialize a_next (≈1 line)
+      a_next = a0
+      
+      # loop over all time-steps
+      for t in range(T_x):
+          # Update next hidden state, compute the prediction, get the cache (≈1 line)
+          a_next, yt_pred, cache = rnn_cell_forward(x[:, :, t], a_next, parameters) 
+          # Save the value of the new "next" hidden state in a (≈1 line)
+          a[:,:,t] = a_next
+          # Save the value of the prediction in y (≈1 line)
+          y_pred[:,:,t] = yt_pred
+          # Append "cache" to "caches" (≈1 line)
+          caches.append(cache)
+      ### END CODE HERE ###
+      
+      # store values needed for backward propagation in cache
+      caches = (caches, x)
+      
+      return a, y_pred, caches
+  
+  
+  
+  # UNQ_C3 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: lstm_cell_forward
+  
+  def lstm_cell_forward(xt, a_prev, c_prev, parameters):
+      """
+      Implement a single forward step of the LSTM-cell as described in Figure (4)
+  
+      Arguments:
+      xt -- your input data at timestep "t", numpy array of shape (n_x, m).
+      a_prev -- Hidden state at timestep "t-1", numpy array of shape (n_a, m)
+      c_prev -- Memory state at timestep "t-1", numpy array of shape (n_a, m)
+      parameters -- python dictionary containing:
+                          Wf -- Weight matrix of the forget gate, numpy array of shape (n_a, n_a + n_x)
+                          bf -- Bias of the forget gate, numpy array of shape (n_a, 1)
+                          Wi -- Weight matrix of the update gate, numpy array of shape (n_a, n_a + n_x)
+                          bi -- Bias of the update gate, numpy array of shape (n_a, 1)
+                          Wc -- Weight matrix of the first "tanh", numpy array of shape (n_a, n_a + n_x)
+                          bc --  Bias of the first "tanh", numpy array of shape (n_a, 1)
+                          Wo -- Weight matrix of the output gate, numpy array of shape (n_a, n_a + n_x)
+                          bo --  Bias of the output gate, numpy array of shape (n_a, 1)
+                          Wy -- Weight matrix relating the hidden-state to the output, numpy array of shape (n_y, n_a)
+                          by -- Bias relating the hidden-state to the output, numpy array of shape (n_y, 1)
+                          
+      Returns:
+      a_next -- next hidden state, of shape (n_a, m)
+      c_next -- next memory state, of shape (n_a, m)
+      yt_pred -- prediction at timestep "t", numpy array of shape (n_y, m)
+      cache -- tuple of values needed for the backward pass, contains (a_next, c_next, a_prev, c_prev, xt, parameters)
+      
+      Note: ft/it/ot stand for the forget/update/output gates, cct stands for the candidate value (c tilde),
+            c stands for the cell state (memory)
+      """
+  
+      # Retrieve parameters from "parameters"
+      Wf = parameters["Wf"] # forget gate weight
+      bf = parameters["bf"]
+      Wi = parameters["Wi"] # update gate weight (notice the variable name)
+      bi = parameters["bi"] # (notice the variable name)
+      Wc = parameters["Wc"] # candidate value weight
+      bc = parameters["bc"]
+      Wo = parameters["Wo"] # output gate weight
+      bo = parameters["bo"]
+      Wy = parameters["Wy"] # prediction weight
+      by = parameters["by"]
+      
+      # Retrieve dimensions from shapes of xt and Wy
+      n_x, m = xt.shape
+      n_y, n_a = Wy.shape
+  
+      ### START CODE HERE ###
+      # Concatenate a_prev and xt (≈1 line)
+      concat = np.concatenate((a_prev,xt))
+  
+      # Compute values for ft, it, cct, c_next, ot, a_next using the formulas given figure (4) (≈6 lines)
+      ft = sigmoid(np.dot(Wf, concat)+bf)
+      it = sigmoid(np.dot(Wi, concat)+bi)
+      cct = np.tanh(np.dot(Wc, concat)+bc)
+      c_next = ft * c_prev + it * cct
+      ot = sigmoid(np.dot(Wo,concat)+bo)
+      a_next = ot * np.tanh(c_next)
+      
+      # Compute prediction of the LSTM cell (≈1 line)
+      yt_pred = softmax(np.dot(Wy,a_next)+by)
+      ### END CODE HERE ###
+  
+      # store values needed for backward propagation in cache
+      cache = (a_next, c_next, a_prev, c_prev, ft, it, cct, ot, xt, parameters)
+  
+      return a_next, c_next, yt_pred, cache
+  
+  
+  
+  # UNQ_C4 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: lstm_forward
+  
+  def lstm_forward(x, a0, parameters):
+      """
+      Implement the forward propagation of the recurrent neural network using an LSTM-cell described in Figure (4).
+  
+      Arguments:
+      x -- Input data for every time-step, of shape (n_x, m, T_x).
+      a0 -- Initial hidden state, of shape (n_a, m)
+      parameters -- python dictionary containing:
+                          Wf -- Weight matrix of the forget gate, numpy array of shape (n_a, n_a + n_x)
+                          bf -- Bias of the forget gate, numpy array of shape (n_a, 1)
+                          Wi -- Weight matrix of the update gate, numpy array of shape (n_a, n_a + n_x)
+                          bi -- Bias of the update gate, numpy array of shape (n_a, 1)
+                          Wc -- Weight matrix of the first "tanh", numpy array of shape (n_a, n_a + n_x)
+                          bc -- Bias of the first "tanh", numpy array of shape (n_a, 1)
+                          Wo -- Weight matrix of the output gate, numpy array of shape (n_a, n_a + n_x)
+                          bo -- Bias of the output gate, numpy array of shape (n_a, 1)
+                          Wy -- Weight matrix relating the hidden-state to the output, numpy array of shape (n_y, n_a)
+                          by -- Bias relating the hidden-state to the output, numpy array of shape (n_y, 1)
+                          
+      Returns:
+      a -- Hidden states for every time-step, numpy array of shape (n_a, m, T_x)
+      y -- Predictions for every time-step, numpy array of shape (n_y, m, T_x)
+      c -- The value of the cell state, numpy array of shape (n_a, m, T_x)
+      caches -- tuple of values needed for the backward pass, contains (list of all the caches, x)
+      """
+  
+      # Initialize "caches", which will track the list of all the caches
+      caches = []
+      
+      ### START CODE HERE ###
+      Wy = parameters['Wy'] # saving parameters['Wy'] in a local variable in case students use Wy instead of parameters['Wy']
+      # Retrieve dimensions from shapes of x and parameters['Wy'] (≈2 lines)
+      n_x, m, T_x = x.shape
+      n_y, n_a = Wy.shape
+      
+      # initialize "a", "c" and "y" with zeros (≈3 lines)
+      a = np.zeros((n_a,m,T_x))
+      c = np.zeros((n_a,m,T_x))
+      y = np.zeros((n_y,m,T_x))
+      
+      # Initialize a_next and c_next (≈2 lines)
+      a_next = a0
+      c_next = np.zeros((n_a, m))
+      
+      # loop over all time-steps
+      for t in range(T_x):
+          # Get the 2D slice 'xt' from the 3D input 'x' at time step 't'
+          xt = x[:,:,t]
+          # Update next hidden state, next memory state, compute the prediction, get the cache (≈1 line)
+          a_next, c_next, yt, cache = lstm_cell_forward(xt, a_next, c_next, parameters)
+          # Save the value of the new "next" hidden state in a (≈1 line)
+          a[:,:,t] = a_next
+          # Save the value of the next cell state (≈1 line)
+          c[:,:,t]  = c_next
+          # Save the value of the prediction in y (≈1 line)
+          y[:,:,t] = yt
+          # Append the cache into caches (≈1 line)
+          caches.append(cache)
+          
+      ### END CODE HERE ###
+      
+      # store values needed for backward propagation in cache
+      caches = (caches, x)
+  
+      return a, y, c, caches
+
+
+
+Assignment2:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  ### GRADED FUNCTION: clip
+  
+  def clip(gradients, maxValue):
+      '''
+      Clips the gradients' values between minimum and maximum.
+      
+      Arguments:
+      gradients -- a dictionary containing the gradients "dWaa", "dWax", "dWya", "db", "dby"
+      maxValue -- everything above this number is set to this number, and everything less than -maxValue is set to -maxValue
+      
+      Returns: 
+      gradients -- a dictionary with the clipped gradients.
+      '''
+      gradients = copy.deepcopy(gradients)
+      
+      dWaa, dWax, dWya, db, dby = gradients['dWaa'], gradients['dWax'], gradients['dWya'], gradients['db'], gradients['dby']
+     
+      ### START CODE HERE ###
+      # Clip to mitigate exploding gradients, loop over [dWax, dWaa, dWya, db, dby]. (≈2 lines)
+      for gradient in [dWaa, dWax, dWya, db, dby]:
+          np.clip(gradient, -maxValue, maxValue, out = gradient)
+      ### END CODE HERE ###
+      
+      gradients = {"dWaa": dWaa, "dWax": dWax, "dWya": dWya, "db": db, "dby": dby}
+      
+      return gradients
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: sample
+  
+  def sample(parameters, char_to_ix, seed):
+      """
+      Sample a sequence of characters according to a sequence of probability distributions output of the RNN
+  
+      Arguments:
+      parameters -- Python dictionary containing the parameters Waa, Wax, Wya, by, and b. 
+      char_to_ix -- Python dictionary mapping each character to an index.
+      seed -- Used for grading purposes. Do not worry about it.
+  
+      Returns:
+      indices -- A list of length n containing the indices of the sampled characters.
+      """
+      
+      # Retrieve parameters and relevant shapes from "parameters" dictionary
+      Waa, Wax, Wya, by, b = parameters['Waa'], parameters['Wax'], parameters['Wya'], parameters['by'], parameters['b']
+      vocab_size = by.shape[0]
+      n_a = Waa.shape[1]
+      
+      ### START CODE HERE ###
+      # Step 1: Create the a zero vector x that can be used as the one-hot vector 
+      # Representing the first character (initializing the sequence generation). (≈1 line)
+      x = np.zeros((vocab_size,1))
+      # Step 1': Initialize a_prev as zeros (≈1 line)
+      a_prev = np.zeros((n_a,1))
+      
+      # Create an empty list of indices. This is the list which will contain the list of indices of the characters to generate (≈1 line)
+      indices = []
+      
+      # idx is the index of the one-hot vector x that is set to 1
+      # All other positions in x are zero.
+      # Initialize idx to -1
+      idx = -1 
+      
+      # Loop over time-steps t. At each time-step:
+      # Sample a character from a probability distribution 
+      # And append its index (`idx`) to the list "indices". 
+      # You'll stop if you reach 50 characters 
+      # (which should be very unlikely with a well-trained model).
+      # Setting the maximum number of characters helps with debugging and prevents infinite loops. 
+      counter = 0
+      newline_character = char_to_ix['\n']
+      
+      while (idx != newline_character and counter != 50):
+          
+          # Step 2: Forward propagate x using the equations (1), (2) and (3)
+          a = np.tanh(np.dot(Wax,x) +  np.dot(Waa,a_prev) + b)
+          z = np.dot(Wya,a) + by
+          y = softmax(z)
+          
+          # For grading purposes
+          np.random.seed(counter + seed) 
+          
+          # Step 3: Sample the index of a character within the vocabulary from the probability distribution y
+          # (see additional hints above)
+          idx = np.random.choice(range(vocab_size), p=y.ravel())
+  
+          # Append the index to "indices"
+          indices.append(idx)
+          
+          # Step 4: Overwrite the input x with one that corresponds to the sampled index `idx`.
+          # (see additional hints above)
+          x = np.zeros((vocab_size,1))
+          x[idx] = 1
+          
+          # Update "a_prev" to be "a"
+          a_prev = a
+          
+          # for grading purposes
+          seed += 1
+          counter +=1
+          
+      ### END CODE HERE ###
+  
+      if (counter == 50):
+          indices.append(char_to_ix['\n'])
+      
+      return indices
+  
+  
+  
+  # UNQ_C3 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: optimize
+  
+  def optimize(X, Y, a_prev, parameters, learning_rate = 0.01):
+      """
+      Execute one step of the optimization to train the model.
+      
+      Arguments:
+      X -- list of integers, where each integer is a number that maps to a character in the vocabulary.
+      Y -- list of integers, exactly the same as X but shifted one index to the left.
+      a_prev -- previous hidden state.
+      parameters -- python dictionary containing:
+                          Wax -- Weight matrix multiplying the input, numpy array of shape (n_a, n_x)
+                          Waa -- Weight matrix multiplying the hidden state, numpy array of shape (n_a, n_a)
+                          Wya -- Weight matrix relating the hidden-state to the output, numpy array of shape (n_y, n_a)
+                          b --  Bias, numpy array of shape (n_a, 1)
+                          by -- Bias relating the hidden-state to the output, numpy array of shape (n_y, 1)
+      learning_rate -- learning rate for the model.
+      
+      Returns:
+      loss -- value of the loss function (cross-entropy)
+      gradients -- python dictionary containing:
+                          dWax -- Gradients of input-to-hidden weights, of shape (n_a, n_x)
+                          dWaa -- Gradients of hidden-to-hidden weights, of shape (n_a, n_a)
+                          dWya -- Gradients of hidden-to-output weights, of shape (n_y, n_a)
+                          db -- Gradients of bias vector, of shape (n_a, 1)
+                          dby -- Gradients of output bias vector, of shape (n_y, 1)
+      a[len(X)-1] -- the last hidden state, of shape (n_a, 1)
+      """
+      
+      ### START CODE HERE ###
+      
+      # Forward propagate through time (≈1 line)
+      loss, cache = rnn_forward(X, Y, a_prev, parameters)
+      
+      # Backpropagate through time (≈1 line)
+      gradients, a = rnn_backward(X, Y, parameters, cache)
+      
+      # Clip your gradients between -5 (min) and 5 (max) (≈1 line)
+      gradients = clip(gradients, 5)
+      
+      # Update parameters (≈1 line)
+      parameters = update_parameters(parameters, gradients, learning_rate)
+      
+      ### END CODE HERE ###
+      
+      return loss, gradients, a[len(X)-1]
+  
+  
+  
+  # UNQ_C4 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: model
+  
+  def model(data_x, ix_to_char, char_to_ix, num_iterations = 35000, n_a = 50, dino_names = 7, vocab_size = 27, verbose = False):
+      """
+      Trains the model and generates dinosaur names. 
+      
+      Arguments:
+      data_x -- text corpus, divided in words
+      ix_to_char -- dictionary that maps the index to a character
+      char_to_ix -- dictionary that maps a character to an index
+      num_iterations -- number of iterations to train the model for
+      n_a -- number of units of the RNN cell
+      dino_names -- number of dinosaur names you want to sample at each iteration. 
+      vocab_size -- number of unique characters found in the text (size of the vocabulary)
+      
+      Returns:
+      parameters -- learned parameters
+      """
+      
+      # Retrieve n_x and n_y from vocab_size
+      n_x, n_y = vocab_size, vocab_size
+      
+      # Initialize parameters
+      parameters = initialize_parameters(n_a, n_x, n_y)
+      
+      # Initialize loss (this is required because we want to smooth our loss)
+      loss = get_initial_loss(vocab_size, dino_names)
+      
+      # Build list of all dinosaur names (training examples).
+      examples = [x.strip() for x in data_x]
+      
+      # Shuffle list of all dinosaur names
+      np.random.seed(0)
+      np.random.shuffle(examples)
+      
+      # Initialize the hidden state of your LSTM
+      a_prev = np.zeros((n_a, 1))
+      
+      # for grading purposes
+      last_dino_name = "abc"
+      
+      # Optimization loop
+      for j in range(num_iterations):
+          
+          ### START CODE HERE ###
+          
+          # Set the index `idx` (see instructions above)
+          idx = j % len(examples)
+          
+          # Set the input X (see instructions above)
+          single_example = examples[idx]
+          single_example_chars = list(single_example) + ['\n']
+          single_example_ix = [char_to_ix[ch] for ch in single_example]
+          X = [None] + single_example_ix
+          
+          # Set the labels Y (see instructions above)
+          ix_newline = char_to_ix['\n']
+          Y = X[1:] + [ix_newline]
+  
+          # Perform one optimization step: Forward-prop -> Backward-prop -> Clip -> Update parameters
+          # Choose a learning rate of 0.01
+          curr_loss, gradients, a_prev = optimize(X, Y, a_prev, parameters, learning_rate=0.01)
+          
+          ### END CODE HERE ###
+          
+          # debug statements to aid in correctly forming X, Y
+          if verbose and j in [0, len(examples) -1, len(examples)]:
+              print("j = " , j, "idx = ", idx,) 
+          if verbose and j in [0]:
+              print("single_example =", single_example)
+              print("single_example_chars", single_example_chars)
+              print("single_example_ix", single_example_ix)
+              print(" X = ", X, "\n", "Y =       ", Y, "\n")
+          
+          # to keep the loss smooth.
+          loss = smooth(loss, curr_loss)
+  
+          # Every 2000 Iteration, generate "n" characters thanks to sample() to check if the model is learning properly
+          if j % 2000 == 0:
+              
+              print('Iteration: %d, Loss: %f' % (j, loss) + '\n')
+              
+              # The number of dinosaur names to print
+              seed = 0
+              for name in range(dino_names):
+                  
+                  # Sample indices and print them
+                  sampled_indices = sample(parameters, char_to_ix, seed)
+                  last_dino_name = get_sample(sampled_indices, ix_to_char)
+                  print(last_dino_name.replace('\n', ''))
+                  
+                  seed += 1  # To get the same result (for grading purposes), increment the seed by one. 
+        
+              print('\n')
+          
+      return parameters, last_dino_name
+
+
+
+Assignment3:
+  # UNQ_C1 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: djmodel
+  
+  def djmodel(Tx, LSTM_cell, densor, reshaper):
+      """
+      Implement the djmodel composed of Tx LSTM cells where each cell is responsible
+      for learning the following note based on the previous note and context.
+      Each cell has the following schema: 
+              [X_{t}, a_{t-1}, c0_{t-1}] -> RESHAPE() -> LSTM() -> DENSE()
+      Arguments:
+          Tx -- length of the sequences in the corpus
+          LSTM_cell -- LSTM layer instance
+          densor -- Dense layer instance
+          reshaper -- Reshape layer instance
+      
+      Returns:
+          model -- a keras instance model with inputs [X, a0, c0]
+      """
+      # Get the shape of input values
+      n_values = densor.units
+      
+      # Get the number of the hidden state vector
+      n_a = LSTM_cell.units
+      
+      # Define the input layer and specify the shape
+      X = Input(shape=(Tx, n_values)) 
+      
+      # Define the initial hidden state a0 and initial cell state c0
+      # using `Input`
+      a0 = Input(shape=(n_a,), name='a0')
+      c0 = Input(shape=(n_a,), name='c0')
+      a = a0
+      c = c0
+      ### START CODE HERE ### 
+      # Step 1: Create empty list to append the outputs while you iterate (≈1 line)
+      outputs = []
+      
+      # Step 2: Loop over tx
+      for t in range(Tx):
+          
+          # Step 2.A: select the "t"th time step vector from X. 
+          x = X[:, t, :]
+          # Step 2.B: Use reshaper to reshape x to be (1, n_values) (≈1 line)
+          x = reshaper(x)
+          # Step 2.C: Perform one step of the LSTM_cell
+          _, a, c = LSTM_cell(x, initial_state=[a, c])
+          # Step 2.D: Apply densor to the hidden state output of LSTM_Cell
+          out = densor(a)
+          # Step 2.E: append the output to "outputs"
+          outputs.append(out)
+          
+      # Step 3: Create model instance
+      model = Model(inputs=[X, a0, c0], outputs=outputs)
+      
+      ### END CODE HERE ###
+      
+      return model
+  
+  
+  
+  # UNQ_C2 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: music_inference_model
+  
+  def music_inference_model(LSTM_cell, densor, Ty=100):
+      """
+      Uses the trained "LSTM_cell" and "densor" from model() to generate a sequence of values.
+      
+      Arguments:
+      LSTM_cell -- the trained "LSTM_cell" from model(), Keras layer object
+      densor -- the trained "densor" from model(), Keras layer object
+      Ty -- integer, number of time steps to generate
+      
+      Returns:
+      inference_model -- Keras model instance
+      """
+      
+      # Get the shape of input values
+      n_values = densor.units
+      # Get the number of the hidden state vector
+      n_a = LSTM_cell.units
+      
+      # Define the input of your model with a shape 
+      x0 = Input(shape=(1, n_values))
+      
+      
+      # Define s0, initial hidden state for the decoder LSTM
+      a0 = Input(shape=(n_a,), name='a0')
+      c0 = Input(shape=(n_a,), name='c0')
+      a = a0
+      c = c0
+      x = x0
+  
+      ### START CODE HERE ###
+      # Step 1: Create an empty list of "outputs" to later store your predicted values (≈1 line)
+      outputs = []
+      
+      # Step 2: Loop over Ty and generate a value at every time step
+      for t in range(Ty):
+          # Step 2.A: Perform one step of LSTM_cell. Use "x", not "x0" (≈1 line)
+          _, a, c = LSTM_cell(x, initial_state=[a, c])
+          
+          # Step 2.B: Apply Dense layer to the hidden state output of the LSTM_cell (≈1 line)
+          out = densor(a)
+          # Step 2.C: Append the prediction "out" to "outputs". out.shape = (None, 90) (≈1 line)
+          outputs.append(out)
+   
+          # Step 2.D: 
+          # Select the next value according to "out",
+          # Set "x" to be the one-hot representation of the selected value
+          # See instructions above.
+          x = tf.math.argmax(out, axis=-1)
+          x = tf.one_hot(x, depth=n_values)
+          # Step 2.E: 
+          # Use RepeatVector(1) to convert x into a tensor with shape=(None, 1, 90)
+          x = RepeatVector(1)(x)
+          
+      # Step 3: Create model instance with the correct "inputs" and "outputs" (≈1 line)
+      inference_model = Model(inputs=[x0,a0,c0], outputs=outputs)
+      
+      ### END CODE HERE ###
+      
+      return inference_model
+  
+  
+  
+  # UNQ_C3 (UNIQUE CELL IDENTIFIER, DO NOT EDIT)
+  # GRADED FUNCTION: predict_and_sample
+  
+  def predict_and_sample(inference_model, x_initializer = x_initializer, a_initializer = a_initializer, 
+                         c_initializer = c_initializer):
+      """
+      Predicts the next value of values using the inference model.
+      
+      Arguments:
+      inference_model -- Keras model instance for inference time
+      x_initializer -- numpy array of shape (1, 1, 90), one-hot vector initializing the values generation
+      a_initializer -- numpy array of shape (1, n_a), initializing the hidden state of the LSTM_cell
+      c_initializer -- numpy array of shape (1, n_a), initializing the cell state of the LSTM_cel
+      
+      Returns:
+      results -- numpy-array of shape (Ty, 90), matrix of one-hot vectors representing the values generated
+      indices -- numpy-array of shape (Ty, 1), matrix of indices representing the values generated
+      """
+      
+      n_values = x_initializer.shape[2]
+      
+      ### START CODE HERE ###
+      # Step 1: Use your inference model to predict an output sequence given x_initializer, a_initializer and c_initializer.
+      pred = inference_model.predict([x_initializer, a_initializer, c_initializer])
+      # Step 2: Convert "pred" into an np.array() of indices with the maximum probabilities
+      indices = np.argmax(np.array(pred), axis=-1)
+      # Step 3: Convert indices to one-hot vectors, the shape of the results should be (Ty, n_values)
+      results = to_categorical(indices, num_classes=n_values)
+      ### END CODE HERE ###
+      
+      return results, indices
